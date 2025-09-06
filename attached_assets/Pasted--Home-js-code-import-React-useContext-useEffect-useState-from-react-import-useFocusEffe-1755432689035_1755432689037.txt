@@ -1,0 +1,370 @@
+//Home.js code
+import React, { useContext, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import Colors from "../constants/Colors";
+import { defaultStyles } from "../constants/Styles";
+import Keys from "../constants/Keys";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  Image,
+  Text,
+  TouchableOpacity,
+  View,
+  ScrollView,
+  FlatList,
+  ActivityIndicator,
+  RefreshControl,
+  Modal,
+  Alert, // Add this line
+  Platform, // And this line
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../AuthContext";
+import { UserContext } from "../UserContext";
+import Svg, { Rect, Path, Ellipse, Circle } from "react-native-svg";
+import {
+  LogOutIcon,
+  DocumentIcon,
+  BulbIcon,
+  ForwardIcon,
+  ArchiveIcon,
+  AddIcon,
+  SearchIcon,
+  MailIcon,
+  CallIcon,
+  CompanyIcon,
+  TrashIcon,
+} from "../components/IconsYN";
+import styles from "../constants/HomeScreen.styles";
+import { SearchBar } from "@rneui/themed";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Linking } from "react-native"; // Import Linking API
+import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
+import settingsPageLinksData from "./settingsPageLinksData"; // Import the setting page data
+import styles_chat from "../constants/UpdateScreen.styles";
+
+
+function HomeScreen() {
+  const navigation = useNavigation();
+  const { accessToken } = useAuth();
+  const { users, setUsers } = useContext(UserContext);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false); // State for refreshing
+  const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  //const [lastFetchTime, setLastFetchTime] = useState(0);
+
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchChatListFromStorageRe();
+    }, [])
+  );
+
+  // useFocusEffect
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("Home screen in focus, fetching latest chats");
+      const now = Date.now();
+
+      // Check if the last refresh was within the last 30 seconds
+      if (now - lastRefreshTime < 30000) {
+        console.log("Skipping refresh, last refresh was within 30 seconds.");
+        return;
+      }
+
+      fetchChatList(); // Fetch fresh data from API when screen comes into focus
+      return () => {
+        // Any cleanup if needed
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={navigatetoNewChat}
+          style={{ paddingRight: 10 }}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.greenwa} size="small" />
+          ) : (
+            <AddIcon color={Colors.greenwa} size={32} />
+          )}
+        </TouchableOpacity>
+      ),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={navigatetoArchived}
+          style={{ paddingLeft: 10 }}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.greenwa} size="small" />
+          ) : (
+            <ArchiveIcon color={Colors.greenwa} size={28} />
+          )}
+        </TouchableOpacity>
+      ),
+    });
+
+    fetchChatListFromStorage().then(async (storedUsers) => {
+      const archivedChats =
+        JSON.parse(await AsyncStorage.getItem("archivedChats")) || [];
+      if (storedUsers && storedUsers.length > 0) {
+        const activeUsers = storedUsers.filter(
+          (user) => !archivedChats.includes(user.id)
+        );
+        setUsers(activeUsers);
+        setFilteredUsers(activeUsers);
+      } else {
+        fetchChatList();
+      }
+    });
+  }, [accessToken, navigation]);
+
+  const fetchChatListFromStorage = async () => {
+    try {
+      const storedUsers = await AsyncStorage.getItem("users");
+      return storedUsers ? JSON.parse(storedUsers) : [];
+    } catch (e) {
+      console.error("Failed to fetch users from storage:", e);
+      return [];
+    }
+  };
+
+  const navigatetoArchived = async () => {
+    navigation.navigate("Archived");
+  };
+
+  const navigatetoNewChat = async () => {
+    navigation.navigate("NewChat");
+  };
+
+  const fetchChatListFromStorageRe = async () => {
+    fetchChatListFromStorage().then(async (storedUsers) => {
+      const archivedChats =
+        JSON.parse(await AsyncStorage.getItem("archivedChats")) || [];
+      if (storedUsers && storedUsers.length > 0) {
+        const activeUsers = storedUsers.filter(
+          (user) => !archivedChats.includes(user.id)
+        );
+        setUsers(activeUsers);
+        setFilteredUsers(activeUsers);
+      }
+    });
+  };
+
+  const archiveChat = async (chatId) => {
+    try {
+      const archivedChats =
+        JSON.parse(await AsyncStorage.getItem("archivedChats")) || [];
+      if (!archivedChats.includes(chatId)) {
+        archivedChats.push(chatId);
+        await AsyncStorage.setItem(
+          "archivedChats",
+          JSON.stringify(archivedChats)
+        );
+        const updatedFilteredUsers = filteredUsers.filter(
+          (user) => user.id !== chatId
+        );
+        setFilteredUsers(updatedFilteredUsers);
+      }
+    } catch (error) {
+      console.error("Error archiving chat:", error);
+    }
+  };
+
+  const fetchChatList = async () => {
+    setLoading(true);
+    //console.log("accessToken from Home.js : " + accessToken);
+
+    try {
+      const response = await fetch(Keys.apiURLDisa + "/allchats", {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        },
+      });
+
+
+
+
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data && Array.isArray(data)) {
+        const archivedChats =
+          JSON.parse(await AsyncStorage.getItem("archivedChats")) || [];
+        const storedUsers =
+          JSON.parse(await AsyncStorage.getItem("users")) || [];
+
+        // Keep the archived chats
+        const archivedUsers = storedUsers.filter((user) =>
+          archivedChats.includes(user.id)
+        );
+
+        // Process new chats
+        const newUsers = data
+          .filter((chat) => !archivedChats.includes(chat.chat_id))
+          .map((chat) => ({
+            id: chat.chat_id,
+            name: chat.creator_name,
+
+            avatar: chat.group_icon_url
+              ? chat.group_icon_url
+              : "https://raw.githubusercontent.com/dizio-in/cdn/refs/heads/main/images/group-icon.png",
+
+            // lastMessage: 'Task ID ',
+            lastMessage: chat.skills,
+
+            // lastMessage: 'Task ID ',
+            isCreator: chat.is_creator,
+
+            // chat.skills ? chat.skills : Skill
+
+            timestamp: new Date(chat.created_at).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          }));
+
+        // Combine archived and new users
+        const allUsers = [...archivedUsers, ...newUsers];
+
+        await storeUsersData(allUsers);
+        setUsers(newUsers); // Only set active users for the main screen
+        setFilteredUsers(newUsers);
+      } else {
+        //console.log("Unexpected data format:", data);
+        console.log("Unexpected data format");
+      }
+    } catch (error) {
+      setLoading(false);
+      console.error("Error fetching data (fetchChatList):", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const storeUsersData = async (usersData) => {
+    try {
+      const jsonUsers = JSON.stringify(usersData);
+      await AsyncStorage.setItem("users", jsonUsers);
+      //console.log('Users data stored successfully!');
+    } catch (e) {
+      console.error("Failed to store users data:", e);
+    }
+  };
+
+  const updateSearch = (search) => {
+    setSearch(search);
+    if (search === "") {
+      setFilteredUsers(users);
+    } else {
+      const filtered = users.filter(
+        (user) =>
+          user.name.toLowerCase().includes(search.toLowerCase()) ||
+          user.lastMessage.toLowerCase().includes(search.toLowerCase())
+      );
+      setFilteredUsers(filtered);
+    }
+  };
+
+  // Handler for pull-to-refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchChatList();
+    setRefreshing(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      {loading && (
+        <View style={{ paddingTop: 5, paddingBottom: 5 }}>
+          <ActivityIndicator color={Colors.greenwa} size="small" />
+        </View>
+      )}
+      <SearchBar
+        platform="ios"
+        containerStyle={{ height: 50 }}
+        inputContainerStyle={{ height: 35, backgroundColor: Colors.searchHome }}
+        placeholder="Search"
+        placeholderTextColor="#888"
+        round
+        value={search}
+        showCancel
+        cancelButtonTitle="Cancel"
+        searchIcon={<SearchIcon color={Colors.black} size={20} />}
+        onChangeText={updateSearch}
+      />
+      <ScrollView
+        contentContainerStyle={styles.userList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]} // Customize the refresh control spinner color
+          />
+        }
+      >
+        {filteredUsers.length === 0 ? (
+          <View style={styles.emptyChatContainer}>
+            <Text style={styles.emptyChatMessage}>Start a new chat!</Text>
+            <Text style={styles.emptyChatMessage2}>
+              Your new partner, in intelligent conversations!
+            </Text>
+
+            <TouchableOpacity
+              style={styles.startNewChatButton}
+              onPress={navigatetoNewChat}
+            >
+              <>
+                <Text style={[styles.buttonText, styles.enabled]}>
+                  Create Chat
+                </Text>
+              </>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          filteredUsers.map((user) => (
+            <TouchableOpacity
+              key={user.id}
+              style={styles.userRow}
+              onPress={() =>
+                navigation.navigate("Chat", {
+                  chatId: user.id,
+                  userName: user.name,
+                  avatar: user.avatar,
+                  isCreator: user.isCreator,
+                })
+              }
+            >
+              <Image
+                source={{ uri: user.avatar }}
+                style={styles.avatar}
+                key={user.avatar} // Add key to force re-render of Image component
+              />
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{user.name}</Text>
+                <Text style={styles.lastMessage}>{user.lastMessage}</Text>
+              </View>
+              <Text style={styles.timestamp}>{user.timestamp}</Text>
+              <TouchableOpacity onPress={() => archiveChat(user.id)}>
+                <ArchiveIcon color={Colors.greenwa} size={24} />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
+    </View>
+  );
+}

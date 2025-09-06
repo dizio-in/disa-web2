@@ -1,0 +1,750 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Button,
+  TouchableOpacity,
+  ScrollView,
+  FlatList,
+  Alert,
+  ActivityIndicator,
+  Share,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Colors from "../constants/Colors";
+import { defaultStyles } from "../constants/Styles";
+import {
+  AddCircleIcon,
+  BanIcon,
+  BulbIcon,
+  CopyIcon,
+  ForwardIcon,
+  MoreIcon,
+  PeopleIcon,
+  PersonIcon,
+  RemoveCircleIcon,
+  Share2Icon,
+  ShareIcon,
+  TrashIcon,
+  DangerIcon,
+  AddIcon,
+} from "../components/IconsYN";
+
+// Adjust the path as necessary
+import styles from "../constants/HomeScreen.styles";
+import { useAuth } from "../AuthContext";
+import Keys from "../constants/Keys";
+import * as Clipboard from "expo-clipboard";
+
+const ContactInfo = ({ route }) => {
+  const { userName, chatId, avatar, isCreator } = route.params;
+  const { accessToken } = useAuth();
+  const navigation = useNavigation();
+
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showUserList, setShowUserList] = useState(false);
+  const [showUserList2, setShowUserList2] = useState(false);
+  const [skill, setSkill] = useState("");
+
+  const [userData, setUserData] = useState(null);
+
+  const fetchUserData = async () => {
+    try {
+      const storedData = await AsyncStorage.getItem("userData");
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (parsedData.detail && parsedData.detail === "Invalid token") {
+          // Handle invalid token case
+        } else {
+          setUserData(parsedData); // Set user data immediately
+
+          // Start downloading the image if it exists
+          //console.log("Profile Image URL Y " + parsedData.profile_pic_url);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  // Function to fetch skills by chatId
+  const fetchSkillsByChatId = async (chatId) => {
+    try {
+      const storedUsers = await AsyncStorage.getItem("users");
+
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers);
+        const user = users.find((user) => user.id === chatId);
+        return user ? user.lastMessage : null; // Return skills or null if not found
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to fetch users from storage:", error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    fetchUserData();
+  }, [accessToken]);
+
+  useEffect(() => {
+    const loadSkill = async () => {
+      const userSkill = await fetchSkillsByChatId(chatId);
+      if (userSkill) {
+        setSkill(userSkill);
+      }
+    };
+
+    loadSkill();
+  }, [chatId]);
+
+  const fetchCompanyUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${Keys.apiURLDisa}/chats/${chatId}/users`, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const data = await response.json();
+      setCompanyUsers(data);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching company users:", error);
+      Alert.alert("Error", "Failed to fetch company users");
+      setLoading(false);
+    }
+  };
+
+  const handleAddRemoveMembers = () => {
+    setShowUserList(true);
+    fetchCompanyUsers();
+  };
+
+  const handleBlockUnBlockMembers = () => {
+    setShowUserList2(true);
+    fetchCompanyUsers();
+  };
+
+  const blockUserFromChat = async (userId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${Keys.apiURLDisa}/users/block/${userId}`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const data = await response.json();
+      Alert.alert("Success", data.message);
+      setLoading(false);
+      fetchCompanyUsers();
+    } catch (error) {
+      console.error("Error removing user from chat:", error);
+      Alert.alert("Error", "Failed to remove user from chat");
+      setLoading(false);
+    }
+  };
+
+  const unblockUserFromChat = async (userId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${Keys.apiURLDisa}/users/unblock/${userId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+      Alert.alert("Success", data.message);
+      setLoading(false);
+      fetchCompanyUsers();
+    } catch (error) {
+      console.error("Error removing user from chat:", error);
+      Alert.alert("Error", "Failed to remove user from chat");
+      setLoading(false);
+    }
+  };
+
+  const removeUserFromChat = async (userId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${Keys.apiURLDisa}/chats/${chatId}/remove-user/${userId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+      Alert.alert("Success", data.message);
+      setLoading(false);
+      fetchCompanyUsers();
+    } catch (error) {
+      console.error("Error removing user from chat:", error);
+      Alert.alert("Error", "Failed to remove user from chat");
+      setLoading(false);
+    }
+  };
+
+  const addUserToChat = async (userId) => {
+    setLoading(true);
+    try {
+      const isInChat = companyUsers.some(
+        (user) => user.id === userId && user.member_status
+      );
+      if (isInChat) {
+        Alert.alert("Info", "User is already a member of the chat.");
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(
+        `${Keys.apiURLDisa}/chats/${chatId}/add-user/${userId}`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+      Alert.alert("Success", data.message);
+      setLoading(false);
+      fetchCompanyUsers();
+    } catch (error) {
+      console.error("Error adding user to chat:", error);
+      Alert.alert("Error", "Failed to add user to chat");
+      setLoading(false);
+    }
+  };
+
+  const reportChat = async () => {
+    Alert.alert(
+      "Confirm Report",
+      "This user and chat will be reported to the Disa Team for review. Do you want to proceed?",
+      [
+        {
+          text: "No",
+          onPress: () => {
+            // If the user clicks No, just close the alert and don't proceed.
+            console.log("Chat reporting canceled");
+          },
+          style: "cancel", // This will show the "No" button as the cancel button
+        },
+        {
+          text: "Yes",
+          onPress: async () => {
+            // Proceed with reporting the chat
+            setLoading(true);
+            try {
+              const response = await fetch(
+                `${Keys.apiURLDisa}/chats/${chatId}/report`,
+                {
+                  method: "POST",
+                  headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    report_type: "CHAT",
+                    chat_id: chatId,
+                  }),
+                }
+              );
+
+              const data = await response.json();
+              setLoading(false);
+
+              if (response.ok) {
+                Alert.alert("Success", data.message);
+                navigation.navigate("Home");
+              } else {
+                Alert.alert("Error", data.message || "Failed to report chat");
+              }
+            } catch (error) {
+              console.error("Error reporting chat:", error);
+              setLoading(false);
+              Alert.alert("Error", "Failed to report chat");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteChat = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${Keys.apiURLDisa}/chats/${chatId}`, {
+        method: "DELETE",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const data = await response.json();
+      setLoading(false);
+      Alert.alert("Success", data.message);
+      navigation.navigate("Home");
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+      setLoading(false);
+      Alert.alert("Error", "Failed to delete chat");
+    }
+  };
+
+  const leaveChat = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${Keys.apiURLDisa}/chats/${chatId}/leave`, {
+        method: "DELETE",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+      setLoading(false);
+      Alert.alert("Success", data.message);
+      navigation.navigate("Home"); // Redirect to Home or relevant screen after leaving
+    } catch (error) {
+      console.error("Error leaving chat:", error);
+      setLoading(false);
+      Alert.alert("Error", "Failed to leave chat.");
+    }
+  };
+
+  const exportChat = async () => {
+    try {
+      const messagesJson = await AsyncStorage.getItem(
+        `@chat_messages_${chatId}`
+      );
+      if (messagesJson) {
+        const messages = JSON.parse(messagesJson);
+        const chatText = messages
+          .map((message) => `${message.sender_name}: ${message.message}\n`)
+          .join("\n");
+        await Share.share({
+          message: chatText,
+          title: "Chat Export",
+        });
+      } else {
+        Alert.alert("No Messages", "There are no messages to export.");
+      }
+    } catch (error) {
+      console.error("Error exporting chat:", error);
+      Alert.alert("Error", "Failed to export chat.");
+    }
+  };
+
+  const copyChatToClipboard = async () => {
+    try {
+      const messagesJson = await AsyncStorage.getItem(
+        `@chat_messages_${chatId}`
+      );
+      if (messagesJson) {
+        const messages = JSON.parse(messagesJson);
+        const chatText = messages
+          .map((message) => `${message.sender_name}: ${message.message}\n`)
+          .join("\n");
+        await Clipboard.setStringAsync(chatText);
+        Alert.alert("Success", "Conversation copied to clipboard.");
+      } else {
+        Alert.alert("No Messages", "There are no messages to copy.");
+      }
+    } catch (error) {
+      console.error("Error copying conversation:", error);
+      Alert.alert("Error", "Failed to copy conversation.");
+    }
+  };
+
+  const renderCompanyUser = ({ item }) => {
+    const isInChat = item.member_status;
+    const disableTouch = loading;
+
+    const handlePress = () => {
+      if (!disableTouch) {
+        if (!isInChat) {
+          addUserToChat(item.id);
+        } else {
+          removeUserFromChat(item.id);
+        }
+      }
+    };
+
+    return (
+      <TouchableOpacity disabled={disableTouch} onPress={handlePress}>
+        <View style={defaultStyles.item}>
+          <View
+            style={{
+              //backgroundColor: Colors.greenwa,
+              padding: 4,
+              borderRadius: 6,
+            }}
+          >
+            <PersonIcon color={Colors.black} size={24} />
+          </View>
+
+          <Text style={{ fontSize: 18, flex: 1 }}>{item.name}</Text>
+
+          {isInChat ? (
+            <RemoveCircleIcon color={Colors.black} size={28} />
+          ) : (
+            <AddCircleIcon color={Colors.black} size={28} />
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCompanyUserBlockUnblock = ({ item }) => {
+    const isInChat = item.blocked;
+    const disableTouch = loading;
+
+    const handlePress = () => {
+      if (!disableTouch) {
+        if (!isInChat) {
+          blockUserFromChat(item.id);
+        } else {
+          unblockUserFromChat(item.id);
+        }
+      }
+    };
+
+    return (
+      <TouchableOpacity disabled={disableTouch} onPress={handlePress}>
+        <View style={defaultStyles.item}>
+          <View
+            style={{
+              //backgroundColor: Colors.greenwa,
+              padding: 4,
+              borderRadius: 6,
+            }}
+          >
+            <PersonIcon color={Colors.black} size={24} />
+          </View>
+
+          <Text style={{ fontSize: 18, flex: 1 }}>{item.name}</Text>
+
+          {isInChat ? (
+            <AddCircleIcon color={Colors.black} size={28} />
+          ) : (
+            <BanIcon color={Colors.black} size={28} />
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={Colors.greenwa} />
+        </View>
+      ) : (
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          <View style={styles.headline}>
+            <Text style={styles.headlineName}>
+              {" "}
+              <Image
+                source={{ uri: avatar }}
+                //src={avatar}
+                style={styles.avatar27}
+              />
+            </Text>
+            <Text style={styles.headlineName}>{userName}</Text>
+          </View>
+
+          <View style={defaultStyles.block}>
+            <>
+              <View style={defaultStyles.item}>
+                <View
+                  style={{
+                    //backgroundColor: Colors.greenwa,
+                    padding: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <MoreIcon color={Colors.black} size={24} />
+                </View>
+
+                <Text style={{ fontSize: 18, flex: 1 }}>
+                  Reference ID : {chatId}
+                </Text>
+              </View>
+
+              {/* Separator between email and phone */}
+              <View style={defaultStyles.separator} />
+
+              <View style={defaultStyles.item}>
+                <View
+                  style={{
+                    // backgroundColor: Colors.greenwa,
+                    padding: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <BulbIcon color={Colors.black} size={24} />
+                </View>
+
+                {skill ? (
+                  <Text style={{ fontSize: 18, flex: 1 }}>{skill}</Text>
+                ) : userData ? (
+                  <Text style={{ fontSize: 18, flex: 1 }}>
+                    {userData.industry} - {userData.specialization}
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 18, flex: 1 }}>Default Skill</Text>
+                )}
+              </View>
+            </>
+          </View>
+
+          <View style={defaultStyles.block}>
+            <TouchableOpacity onPress={handleAddRemoveMembers}>
+              <View style={defaultStyles.item}>
+                <View
+                  style={{
+                    //backgroundColor: Colors.greenwa,
+                    padding: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <PeopleIcon color={Colors.black} size={24} />
+                </View>
+
+                <Text style={{ fontSize: 18, flex: 1 }}>
+                  Add / Remove Members
+                </Text>
+
+                <ForwardIcon color={Colors.black} size={24} />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {showUserList && (
+            <View style={defaultStyles.block}>
+              {loading ? (
+                <View style={{ paddingTop: 5, paddingBottom: 5 }}>
+                  <ActivityIndicator color={Colors.greenwa} size="small" />
+                </View>
+              ) : null}
+
+              <FlatList
+                data={companyUsers}
+                renderItem={renderCompanyUser}
+                keyExtractor={(item) => item.id.toString()}
+                scrollEnabled={false}
+                ItemSeparatorComponent={() => (
+                  <View style={defaultStyles.separator} />
+                )}
+              />
+            </View>
+          )}
+
+          <View style={defaultStyles.block}>
+            <>
+              <TouchableOpacity onPress={copyChatToClipboard}>
+                <View style={defaultStyles.item}>
+                  <View
+                    style={{
+                      //backgroundColor: Colors.greenwa,
+                      padding: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <CopyIcon color={Colors.black} size={24} />
+                  </View>
+
+                  <Text style={{ fontSize: 18, flex: 1 }}>
+                    Copy Conversation
+                  </Text>
+                  <ForwardIcon color={Colors.black} size={24} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Separator between email and phone */}
+              <View style={defaultStyles.separator} />
+
+              <TouchableOpacity onPress={exportChat}>
+                <View style={defaultStyles.item}>
+                  <View
+                    style={{
+                      // backgroundColor: Colors.greenwa,
+                      padding: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Share2Icon color={Colors.black} size={24} />
+                  </View>
+                  <Text style={{ fontSize: 18, flex: 1 }}>
+                    Export Conversation
+                  </Text>
+                  <ForwardIcon color={Colors.black} size={24} />
+                </View>
+              </TouchableOpacity>
+            </>
+          </View>
+
+          <View style={defaultStyles.block}>
+            <>
+              {!isCreator && (
+                <TouchableOpacity onPress={leaveChat}>
+                  <View style={defaultStyles.item}>
+                    <View
+                      style={{
+                        // backgroundColor: Colors.greenwa,
+                        padding: 4,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <BanIcon color={Colors.black} size={24} />
+                    </View>
+                    <Text style={{ fontSize: 18, flex: 1 }}>
+                      Leave Conversation
+                    </Text>
+                    <ForwardIcon color={Colors.black} size={24} />
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Separator between email and phone */}
+              <View style={defaultStyles.separator} />
+
+              <TouchableOpacity onPress={deleteChat}>
+                <View style={defaultStyles.item}>
+                  <View
+                    style={{
+                      // backgroundColor: Colors.greenwa,
+                      padding: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <TrashIcon color={Colors.black} size={24} />
+                  </View>
+                  <Text style={{ fontSize: 18, flex: 1 }}>
+                    Delete Conversation
+                  </Text>
+                  <ForwardIcon color={Colors.black} size={24} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Separator between email and phone */}
+              <View style={defaultStyles.separator} />
+
+              <TouchableOpacity onPress={handleBlockUnBlockMembers}>
+                <View style={defaultStyles.item}>
+                  <View
+                    style={{
+                      // backgroundColor: Colors.greenwa,
+                      padding: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <DangerIcon color={Colors.black} size={24} />
+                  </View>
+                  <Text style={{ fontSize: 18, flex: 1 }}>
+                    Report and Block
+                  </Text>
+                  <ForwardIcon color={Colors.black} size={24} />
+                </View>
+              </TouchableOpacity>
+            </>
+          </View>
+
+          {showUserList2 && (
+            <View style={defaultStyles.block}>
+              <View style={defaultStyles.item}>
+                <View
+                  style={{
+                    // backgroundColor: Colors.greenwa,
+                    padding: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <DangerIcon color={Colors.black} size={24} />
+                </View>
+                <Text style={{ fontSize: 18, flex: 1 }}>
+                  Select the user to block
+                </Text>
+              </View>
+
+              <View style={defaultStyles.item}>
+                <View
+                  style={{
+                    // backgroundColor: Colors.greenwa,
+                    padding: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <BanIcon color={Colors.black} size={24} />
+                </View>
+                <Text style={{ fontSize: 18, flex: 1 }}>
+                  Press this to Block User
+                </Text>
+              </View>
+
+              <View style={defaultStyles.item}>
+                <View
+                  style={{
+                    // backgroundColor: Colors.greenwa,
+                    padding: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <AddCircleIcon color={Colors.black} size={24} />
+                </View>
+                <Text style={{ fontSize: 18, flex: 1 }}>
+                  Press this to Unblock User
+                </Text>
+              </View>
+
+              {/* Separator between email and phone */}
+              <View style={defaultStyles.separator} />
+
+              {loading ? (
+                <View style={{ paddingTop: 5, paddingBottom: 5 }}>
+                  <ActivityIndicator color={Colors.greenwa} size="small" />
+                </View>
+              ) : null}
+
+              <FlatList
+                data={companyUsers}
+                renderItem={renderCompanyUserBlockUnblock}
+                keyExtractor={(item) => item.id.toString()}
+                scrollEnabled={false}
+                ItemSeparatorComponent={() => (
+                  <View style={defaultStyles.separator} />
+                )}
+              />
+            </View>
+          )}
+        </ScrollView>
+      )}
+    </View>
+  );
+};
+
+export default ContactInfo;

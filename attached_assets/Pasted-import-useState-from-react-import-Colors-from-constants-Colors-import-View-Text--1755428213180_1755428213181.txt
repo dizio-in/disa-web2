@@ -1,0 +1,215 @@
+import { useState } from "react";
+import Colors from "../constants/Colors";
+import {
+  View,
+  Text,
+  Linking,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../AuthContext";
+import Keys from "../constants/Keys";
+import styles from "../constants/SignInScreen.styles";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const SignIn = () => {
+  const { setToken } = useAuth();
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const navigation = useNavigation();
+  const keyboardVerticalOffset = Platform.OS === "ios" ? 90 : 0;
+
+  const openLink = () => {
+    Linking.openURL(Keys.urlDisaHome);
+  };
+
+  const handleRequestOTP = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(Keys.apiURLDisa + "/request-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to send OTP");
+      }
+
+      const data = await response.json();
+      Alert.alert("Success", data.message || "OTP has been sent to your email");
+      setOtpSent(true);
+    } catch (error) {
+      console.error("OTP request error:", error.message);
+      Alert.alert(
+        "OTP Request Failed",
+        "Failed to send OTP. Please check your email and try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignIn = async () => {
+    setLoading(true);
+    try {
+      const formData = new URLSearchParams();
+      formData.append("grant_type", "password");
+      formData.append("username", email);
+      formData.append("password", otp);
+      formData.append("scope", "");
+      formData.append("client_id", "string");
+      formData.append("client_secret", "string");
+
+      const response = await fetch(Keys.apiURLDisa + "/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: formData.toString(),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Invalid OTP");
+        } else {
+          throw new Error("Server connection failed");
+        }
+      }
+
+      const data = await response.json();
+      await AsyncStorage.setItem("userData", JSON.stringify(data));
+      await setToken(data.access_token);
+      navigation.navigate("Home");
+    } catch (error) {
+      console.error("Sign in error:", error.message);
+      if (error.message === "Invalid OTP") {
+        Alert.alert(
+          "Sign In Failed",
+          "Invalid OTP. Please try again or request a new OTP."
+        );
+      } else {
+        Alert.alert(
+          "Sign In Failed",
+          "Unable to connect. Please contact the Disa Team."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isEmailValid = email.trim() !== "" && email.includes("@");
+  const isOTPValid = otp.trim() !== "" && otp.length >= 6;
+
+  return (
+    <KeyboardAvoidingView
+      keyboardVerticalOffset={keyboardVerticalOffset}
+      style={{ flex: 1 }}
+      behavior="padding"
+    >
+      <View style={styles.container}>
+        <Text style={styles.description}>
+          {otpSent
+            ? "Enter the OTP sent to your email"
+            : "Please enter your email to receive OTP"}
+        </Text>
+
+        <View style={styles.list}>
+          {!otpSent ? (
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#000000"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          ) : (
+            <>
+              <TextInput
+                style={[styles.input, styles.disabledInput]}
+                value={email}
+                editable={false}
+                selectTextOnFocus={false}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="OTP"
+                placeholderTextColor="#000000"
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+              />
+            </>
+          )}
+        </View>
+
+        <Text style={styles.legal}>
+          Learn how{" "}
+          <Text style={styles.link} onPress={openLink}>
+            Disa works
+          </Text>
+          .
+        </Text>
+
+        <View style={{ flex: 1 }} />
+
+        {otpSent && (
+          <Text style={styles.legal}>
+            <Text
+              style={styles.link}
+              onPress={() => {
+                setOtpSent(false);
+                setOtp("");
+              }}
+            >
+              Use different email?
+            </Text>
+          </Text>
+        )}
+
+        <TouchableOpacity
+          style={[
+            styles.button,
+            {
+              marginBottom: 20,
+              backgroundColor:
+                loading || (otpSent ? !isOTPValid : !isEmailValid)
+                  ? "grey"
+                  : Colors.greenwa,
+            },
+          ]}
+          onPress={otpSent ? handleSignIn : handleRequestOTP}
+          disabled={
+            loading || (otpSent ? !isOTPValid : !isEmailValid)
+          }
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.white} size="large" />
+          ) : (
+            <Text style={[styles.buttonText, styles.enabled]}>
+              {otpSent ? "Sign In" : "Request OTP"}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+};
+
+export default SignIn;

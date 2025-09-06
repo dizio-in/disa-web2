@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(28, 25%, 13%);
+  --muted: hsl(240, 4.8%, 95.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(28, 25%, 13%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(28, 25%, 13%);
+  --border: hsl(220, 5.9%, 90%);
+  --input: hsl(220, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 4.8%, 95.9%);
+  --secondary-foreground: hsl(240, 9.8%, 10%);
+  --accent: hsl(240, 4.8%, 95.9%);
+  --accent-foreground: hsl(240, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(28, 25%, 13%);
+  --radius: 0.5rem;
+
+  /* Messenger specific colors */
+  --messenger-blue: hsl(207, 100%, 50%);
+  --messenger-light-blue: hsl(207, 75%, 62%);
+  --messenger-gray: hsl(220, 13%, 91%);
+  --messenger-bg: hsl(220, 16%, 94%);
+  --messenger-dark: hsl(220, 25%, 13%);
+  --messenger-secondary: hsl(220, 9%, 46%);
+  --online-green: hsl(142, 51%, 49%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .chat-bubble-sent {
+    background: linear-gradient(135deg, hsl(207, 100%, 50%) 0%, hsl(207, 75%, 62%) 100%);
+  }
+  
+  .chat-bubble-received {
+    background: hsl(220, 13%, 91%);
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: hsl(0, 0%, 95%);
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(0, 0%, 76%);
+    border-radius: 2px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(0, 0%, 66%);
+  }
+
+  .messenger-blue {
+    color: hsl(207, 100%, 50%);
+  }
+  
+  .bg-messenger-blue {
+    background-color: hsl(207, 100%, 50%);
+  }
+  
+  .bg-messenger-gray {
+    background-color: hsl(220, 13%, 91%);
+  }
+  
+  .bg-messenger-bg {
+    background-color: hsl(220, 16%, 94%);
+  }
+  
+  .text-messenger-dark {
+    color: hsl(220, 25%, 13%);
+  }
+  
+  .text-messenger-secondary {
+    color: hsl(220, 9%, 46%);
+  }
+  
+  .text-online-green {
+    color: hsl(142, 51%, 49%);
+  }
+  
+  .bg-online-green {
+    background-color: hsl(142, 51%, 49%);
+  }
+
+  .slide-in-left {
+    animation: slideInLeft 0.3s ease-out;
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+}
